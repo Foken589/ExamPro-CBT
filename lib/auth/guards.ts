@@ -1,0 +1,3 @@
+import { redirect } from "next/navigation";import { createClient } from "@/lib/supabase/server";
+export type Role="ADMIN"|"TEACHER"|"STUDENT";
+export async function requireRole(roles:Role[]){const sb=await createClient();const {data:{user}}=await sb.auth.getUser();if(!user)redirect("/auth/login");const {data:profile}=await sb.from("profiles").select("role,full_name,is_active,institution").eq("id",user.id).single();if(!profile||!profile.is_active)redirect("/auth/login");if(!roles.includes(profile.role as Role))redirect(profile.role==="ADMIN"?"/admin":profile.role==="TEACHER"?"/teacher":"/student");return {sb,user,profile}}

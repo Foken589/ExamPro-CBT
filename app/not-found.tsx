@@ -1,0 +1,1 @@
+import Link from "next/link";export default function NotFound(){return <main className="authbg"><section className="authbox"><span className="eyebrow">404 · Page not found</span><h1>We couldn’t find that page.</h1><p>It may have moved, or the address may be incorrect.</p><Link className="btn primary" href="/">Return to ExamPro</Link></section></main>}
