@@ -21,9 +21,11 @@ NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVER_ONLY_SERVICE_ROLE_KEY
+OPENAI_API_KEY=YOUR_SERVER_ONLY_OPENAI_API_KEY
+OPENAI_QUESTION_MODEL=gpt-4o-mini
 ```
 
-The service-role key is used only by the protected timeout-finalization job. `CRON_SECRET` protects that endpoint. Never prefix either secret with `NEXT_PUBLIC_`.
+The service-role key is used only by the protected timeout-finalization job. `CRON_SECRET` protects that endpoint. Question generation uses the server-only OpenAI key; never prefix secrets with `NEXT_PUBLIC_`.
 
 ```bash
 npm install
@@ -45,7 +47,7 @@ The initial migration is `supabase/migrations/202610060001_initial_schema.sql`. 
 ## Deployment: Vercel
 
 1. Push the repository to GitHub and import it into Vercel.
-2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in Vercel project settings. Add the service-role key only if a future server-only admin function requires it.
+2. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `OPENAI_API_KEY`, and `OPENAI_QUESTION_MODEL` in Vercel project settings. Add `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET` for timeout finalization.
 3. Deploy using the standard Next.js build (`npm run build`).
 4. Set `CRON_SECRET` and the Supabase Site URL to the production domain, then add production auth callback/reset URLs. Vercel schedules expired-attempt finalization using `vercel.json`.
 5. Verify signup/confirmation, login, role redirects and the assessment operations against the configured database.
@@ -58,4 +60,10 @@ The application currently uses standard Next.js server rendering and `next start
 
 ## Current implementation boundary
 
-This repository is a working foundation, not yet the full product described in the build specification. Full question bank editing/import, exam authoring/publishing, the interactive timed exam room, result review/export, admin user-management screens, notification delivery, a demo seed and automated end-to-end/security tests still need implementation. The schema includes the core domain objects and critical attempt RPCs, but a production release needs migration review and live Supabase verification.
+The repository includes the main authentication, teacher authoring, student exam-taking, results/export and administrator workflows. The student dashboard shows available and scheduled exams, resume links, completion counts, released-result averages, and in-app exam notifications. New scheduled or published exams notify active student accounts; dashboard data refreshes every minute. Migrations provision a standard subject catalog and a question bank for each subject for teacher and administrator accounts (Mathematics, English Language, English Literature, Physics, Chemistry, Biology, Computer Science, History, Geography, Business Studies, Economics and Further Mathematics).
+
+Teachers can upload questions from **Teacher dashboard → Questions & import**. Create or choose the destination question bank, then upload a CSV with the columns `question_text, option_a, option_b, option_c, option_d, correct_option, marks, difficulty, explanation`. The importer validates rows, supports up to 1,000 questions per file, and offers an error report. The same page has **Generate a question batch**: choose the subject bank and level, generate 25 questions at a time, review/remove drafts, then save them. Four batches give about 100 questions for a subject; generation is limited to 8 batches per teacher per hour. Generated questions are drafts for teacher review and are not automatically attached to or published in an exam. Add `OPENAI_API_KEY` server-side to enable generation.
+
+Teachers create exams from **Teacher dashboard → Create exam**. Set the start and end date/time, duration in minutes, question count and marks, select a question source, then choose **Publish immediately** to make it available on schedule. To keep an exam unpublished, leave that option unchecked. Students see active and scheduled exams and their notifications in the student dashboard.
+
+Email/push notification delivery, demo seed data, complete editing/deletion flows, and automated end-to-end/security coverage remain future work. Before production, apply and review all Supabase migrations, configure authentication and deployment secrets (including the OpenAI key if question generation is enabled), and verify the workflows against a live Supabase project.
