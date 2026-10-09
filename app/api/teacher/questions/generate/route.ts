@@ -46,8 +46,56 @@ export async function POST(request: Request) {
         text: { format: { type: "json_schema", name: "question_batch", strict: true, schema: outputSchema } },
       }),
     });
-    const result = await response.json();
-    if (!response.ok) return NextResponse.json({ error: response.status === 429 ? "The generation provider is busy; try again shortly." : "Question generation failed. Check the server configuration and try again." }, { status: response.status === 429 ? 503 : 502 });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      const providerError = result?.error;
+      const errorCode = providerError?.code ?? "unknown";
+      const errorType = providerError?.type ?? "unknown";
+      const providerMessage =
+        typeof providerError?.message === "string"
+          ? providerError.message
+          : "No provider error message returned";
+
+      // Diagnostic details stay in server logs, not in the browser.
+      console.error("[Question Generation] OpenAI request failed", {
+        status: response.status,
+        code: errorCode,
+        type: errorType,
+        message: providerMessage,
+        model,
+      });
+
+      if (
+        errorCode === "insufficient_quota" ||
+        errorType === "insufficient_quota"
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "AI question generation has reached its API usage limit. Please contact the administrator.",
+          },
+          { status: 503 }
+        );
+      }
+
+      if (response.status === 429) {
+        return NextResponse.json(
+          {
+            error:
+              "The AI provider is rate-limiting requests. Please wait a moment and try again.",
+          },
+          { status: 503 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error:
+            "AI question generation failed. Please try again later or contact the administrator.",
+        },
+        { status: 502 }
+      );
+    }
     const text = result.output?.flatMap((item: { type?: string; content?: { type?: string; text?: string }[] }) => item.type === "message" ? (item.content ?? []).filter((part) => part.type === "output_text").map((part) => part.text ?? "") : []).join("");
     if (!text) return NextResponse.json({ error: "The provider returned no question data. Please try again." }, { status: 502 });
     const batch = z.object({ questions: z.array(z.object({ question_text: z.string().min(8).max(2000), option_a: z.string().min(1), option_b: z.string().min(1), option_c: z.string().min(1), option_d: z.string().min(1), correct_option: z.enum(["A", "B", "C", "D"]), difficulty: z.enum(["EASY", "MEDIUM", "HARD"]), marks: z.number().positive().max(100), explanation: z.string().max(2000) })) }).safeParse(JSON.parse(text));
